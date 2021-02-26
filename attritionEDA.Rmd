@@ -17,16 +17,18 @@ library(caret)
 library(class)
 library(magrittr)
 library(dlookr)
+library(ggthemes)
 ```
 
-
+```{r}
+CaseStudy2data = read.csv("../casestudy02/CaseStudy2data.csv", header = TRUE)
+```
 
 #Looking at the summary statistics
 
 ```{r attrition EDA}
-summary(CaseStudy2data$Attrition)
+summary(CaseStudy2data)
 
-describe(CaseStudy2data)
 CaseStudy2data %>% 
   group_by(Attrition) %>% 
   describe()
@@ -38,28 +40,28 @@ CaseStudy2data %>%
   group_by(Department, JobRole) %>% 
     summarize(Job_Satisfaction=mean(JobSatisfaction),
               Relationship_Satisfaction=mean(RelationshipSatisfaction),
-              Performance_Rating = mean(PerformanceRating),
-              Monthly_Income=mean(MonthlyIncome))
+              Performance_Rating = mean(PerformanceRating))
 
 
 ```
+#Top 3 Factors Contributing to Turnover:
 
 ## Factor 1 : Department
 ```{r}
 
 CaseStudy2data %>% group_by(Attrition) %>% count(Department) 
     ##attrition rates : Human Resources = 17.1%; R&D = 13.3%; Sales = 21.6%
-department.attrition.rate = data.frame(Department = c("Human Resources", "Human Resources", "Research and Development", "Research and Development", "Sales", "Sales"), 
-                                       AttritionRate = c(82.9,17.1,86.7,13.3,78.4,21.6),
-                                       Attrition = c("No","Yes","No","Yes","No","Yes"))
+department.attrition.rate = data.frame(Department = c("Human Resources", "Research and Development", "Sales"), 
+                                       AttritionRate = c(17.1,13.3,21.6))
 
-#bar chart showing attrition for each department. Sales has the highest attrition rate
+#bar graph showing attrition for each department. Sales has the highest attrition rate
 department.attrition.rate %>% 
-  ggplot(aes(x=Department, y= AttritionRate, fill= Attrition)) + 
-  geom_bar(position= "dodge",stat="identity") +
-  geom_text(aes(label = AttritionRate, y = AttritionRate - 3),vjust = -1.5, position = position_dodge(width = .9)) +
+  ggplot(aes(x=Department, y= AttritionRate)) + 
+  geom_bar(position= "dodge",stat="identity", fill ="palevioletred4") +
+  geom_text(aes(label = AttritionRate, y = AttritionRate),vjust = -1, position = position_dodge(width = .9)) +
   ggtitle("Attrition Rates in each department") +
-  theme_minimal()
+  theme_minimal() +
+  ylab("Attrition Rate")
 
 #count of people in each department + attrition
 CaseStudy2data %>% 
@@ -72,19 +74,65 @@ CaseStudy2data %>%
 
 ```
 
-Factor 2:
+##Factor 2: Age
 ```{r}
+CaseStudy2data %>% group_by(Attrition) %>% summarise(mean(Age))
+
+#boxplot showing the attrition explained by age
+CaseStudy2data %>% ggplot(aes(x=Attrition, y=Age)) + 
+  geom_boxplot() +
+  scale_fill_grey() +
+  ggtitle("Boxplot Showing Attrition Explained By Age") +
+  theme_economist()
 
 ```
 
-#possible additions:
-```{r pressure, echo=FALSE}
+##Factor 3: Marital Status
+```{r}
+CaseStudy2data %>% group_by(Attrition) %>% count(MaritalStatus)
+  #attrition rates: Divorced = 6.28%; married = 14.5%; single = 26.02%
+
+marital.attrition.rate = data.frame(MaritalStatus = c("Divorced", "Married", "Single"), 
+                                    AttritionRate = c(6.28,14.15,26.02))
+
+#bar chart showing attrition rate of each marital status                                   
+marital.attrition.rate %>% 
+  ggplot(aes(x=MaritalStatus, y= AttritionRate)) + 
+  geom_bar(position= "dodge",stat="identity", fill = "palevioletred4") +
+  geom_text(aes(label = AttritionRate, y = AttritionRate),vjust = -.3, position = position_dodge(width = .9), size = 5) +
+  ggtitle("Attrition Rates of each Marital Status") +
+  theme_minimal() +
+  xlab("Marital Status") +
+  ylab("Attrition Rate")
+```
+
+
+
+
+##possible additions:
+```{r pressure, echo=FALSE, include=FALSE}
 #meh
 CaseStudy2data %>%
   ggplot(aes(x=YearsAtCompany, y=YearsWithCurrManager,color=Attrition)) + 
   geom_point() +
   geom_smooth(method=lm) +
   theme_minimal()
+
+#number of companies worked at 
+numcompaniesworked.info = as.data.frame(CaseStudy2data %>% 
+                                          group_by(NumCompaniesWorked, Attrition) %>% 
+                                          count(NumCompaniesWorked))
+companies.worked.attrition.rate = data.frame(NumCompaniesWorked =  c("0","0","1","1","2","2","3","3","4","4","5","5","6","6","7","7","8","8","9","9"), 
+                                       AttritionRate = c(90.1,9.9,81.25,18.75,87.84,12.16,90,10,91.8,8.2,74.4,25.6,77,23,76.1,23.9,82.14,17.86,75.76,24.24),
+                                       Attrition = c("No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes"))
+
+companies.worked.attrition.rate %>% 
+  ggplot(aes(x=NumCompaniesWorked, y= AttritionRate, fill = Attrition)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_text(aes(label = AttritionRate, y = AttritionRate -10), vjust = -7, position = position_dodge(width = .9), size = 2.3)
+
+#count of people who worked at multiple companies
+CaseStudy2data %>% ggplot(aes(x = NumCompaniesWorked, fill = Attrition)) + geom_bar(position = "dodge")
 
 ```
 
