@@ -3,26 +3,88 @@ title: "attritionEDA"
 author: "Ryan"
 date: "2/21/2021"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(skimr)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(caret)
+library(class)
+library(magrittr)
+library(dlookr)
 ```
 
-## R Markdown
 
 
+#Looking at the summary statistics
 
-```{r attrition}
-summary(CaseStudy2data)
+```{r attrition EDA}
+summary(CaseStudy2data$Attrition)
+
+describe(CaseStudy2data)
+CaseStudy2data %>% 
+  group_by(Attrition) %>% 
+  describe()
+
+CaseStudy2data %>% group_by(Department) %>% skim()
+
+#comparing job ratings between jobs 
+CaseStudy2data %>%
+  group_by(Department, JobRole) %>% 
+    summarize(Job_Satisfaction=mean(JobSatisfaction),
+              Relationship_Satisfaction=mean(RelationshipSatisfaction),
+              Performance_Rating = mean(PerformanceRating),
+              Monthly_Income=mean(MonthlyIncome))
+
+
 ```
 
-## Including Plots
+## Factor 1 : Department
+```{r}
 
-You can also embed plots, for example:
+CaseStudy2data %>% group_by(Attrition) %>% count(Department) 
+    ##attrition rates : Human Resources = 17.1%; R&D = 13.3%; Sales = 21.6%
+department.attrition.rate = data.frame(Department = c("Human Resources", "Human Resources", "Research and Development", "Research and Development", "Sales", "Sales"), 
+                                       AttritionRate = c(82.9,17.1,86.7,13.3,78.4,21.6),
+                                       Attrition = c("No","Yes","No","Yes","No","Yes"))
 
+#bar chart showing attrition for each department. Sales has the highest attrition rate
+department.attrition.rate %>% 
+  ggplot(aes(x=Department, y= AttritionRate, fill= Attrition)) + 
+  geom_bar(position= "dodge",stat="identity") +
+  geom_text(aes(label = AttritionRate, y = AttritionRate - 3),vjust = -1.5, position = position_dodge(width = .9)) +
+  ggtitle("Attrition Rates in each department") +
+  theme_minimal()
+
+#count of people in each department + attrition
+CaseStudy2data %>% 
+  ggplot(aes(x= Department, fill=Attrition)) +
+  geom_bar(position = "dodge") +
+  geom_text(aes(label = ..count..),stat="count", vjust = -.5, position = position_dodge(.9)) +
+  ggtitle("Number of Employees in Each Department") +
+  ylab("Count") +
+  theme_minimal()
+
+```
+
+Factor 2:
+```{r}
+
+```
+
+#possible additions:
 ```{r pressure, echo=FALSE}
-CaseStudy2data -> ggplot(mapping = aes(x=DistanceFromHome)) + geom_point()
+#meh
+CaseStudy2data %>%
+  ggplot(aes(x=YearsAtCompany, y=YearsWithCurrManager,color=Attrition)) + 
+  geom_point() +
+  geom_smooth(method=lm) +
+  theme_minimal()
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
