@@ -1,6 +1,6 @@
 ---
 title: "attritionEDA"
-author: "Ryan"
+author: "Ryan Kinney"
 date: "2/21/2021"
 output: html_document
 editor_options: 
@@ -18,39 +18,54 @@ library(class)
 library(magrittr)
 library(dlookr)
 library(ggthemes)
+library(plyr)
+library(dplyr)
+library(e1071)
 ```
+
+```{r import}
+CaseStudy2data = read.csv("../casestudy02/CaseStudy2data.csv", header = TRUE) #data set
+CaseStudy2dataNoAttrition = read.csv("../casestudy02/CaseStudy2dataNoAttrition.csv", header = TRUE) #no attrition
+CaseStudy2dataNoSalaries = read.csv("../casestudy02/CaseStudy2dataNoSalary.csv", header = TRUE) #no salary
+```
+
+#DDS Analytics specializes in talent management solutions for Fortune 100 companies, with predicting turnover
+#as the first application of data science for talent management. In this Case study, we have been given a dataset 
+# to identify factors leading to attrition. Then, a model will be created to predict attrition.
+
+##Data cleanup
 
 ```{r}
-CaseStudy2data = read.csv("../casestudy02/CaseStudy2data.csv", header = TRUE)
+#check for character variables and convert to factors:
+CategoricalVars <- names(CaseStudy2data %>% select(where(is.character)))
+CaseStudy2data[sapply(CaseStudy2data,is.character)] <- lapply(CaseStudy2data[sapply(CaseStudy2data, is.character)], as.factor)
+
 ```
 
-#Looking at the summary statistics
+## Looking at the summary statistics and Job happiness in each department:
 
 ```{r attrition EDA}
 summary(CaseStudy2data)
-
-CaseStudy2data %>% 
-  group_by(Attrition) %>% 
-  describe()
-
-CaseStudy2data %>% group_by(Department) %>% skim()
-
-#comparing job ratings between jobs 
-CaseStudy2data %>%
+CaseStudy2data %>% group_by(Attrition) %>% skim()
+#*non-relevant variables with zero impact on attrition: ID, Employee count, employee number
+Attrition.cleaned = CaseStudy2data %>% select(-ID, -EmployeeCount, -EmployeeNumber)
+#comparing job ratings between jobs. R&D manufacturing Directors and Human Resources have the highest ratings
+Attrition.cleaned %>%
   group_by(Department, JobRole) %>% 
     summarize(Job_Satisfaction=mean(JobSatisfaction),
               Relationship_Satisfaction=mean(RelationshipSatisfaction),
-              Performance_Rating = mean(PerformanceRating))
+              Performance_Rating = mean(PerformanceRating),
+              average_ratings = ((Job_Satisfaction + Relationship_Satisfaction + Performance_Rating)/3))
 
 
 ```
-#Top 3 Factors Contributing to Turnover:
+#3 Factors Contributing to Turnover:
 
 ## Factor 1 : Department
 ```{r}
 
-CaseStudy2data %>% group_by(Attrition) %>% count(Department) 
-    ##attrition rates : Human Resources = 17.1%; R&D = 13.3%; Sales = 21.6%
+Attrition.cleaned %>% group_by(Attrition) %>% count(Department) 
+#attrition rates : Human Resources = 17.1%; R&D = 13.3%; Sales = 21.6%
 department.attrition.rate = data.frame(Department = c("Human Resources", "Research and Development", "Sales"), 
                                        AttritionRate = c(17.1,13.3,21.6))
 
@@ -61,8 +76,7 @@ department.attrition.rate %>%
   geom_text(aes(label = AttritionRate, y = AttritionRate),vjust = -1, position = position_dodge(width = .9)) +
   ggtitle("Attrition Rates in each department") +
   theme_minimal() +
-  ylab("Attrition Rate")
-
+  ylab("Attrition Rate (percentage)")
 #count of people in each department + attrition
 CaseStudy2data %>% 
   ggplot(aes(x= Department, fill=Attrition)) +
@@ -76,7 +90,7 @@ CaseStudy2data %>%
 
 ##Factor 2: Age
 ```{r}
-CaseStudy2data %>% group_by(Attrition) %>% summarise(mean(Age))
+Attrition.cleaned%>% group_by(Attrition) %>% summarise(mean(Age))
 
 #boxplot showing the attrition explained by age
 CaseStudy2data %>% ggplot(aes(x=Attrition, y=Age)) + 
@@ -89,9 +103,8 @@ CaseStudy2data %>% ggplot(aes(x=Attrition, y=Age)) +
 
 ##Factor 3: Marital Status
 ```{r}
-CaseStudy2data %>% group_by(Attrition) %>% count(MaritalStatus)
+Attrition.cleaned %>% group_by(Attrition) %>% count(MaritalStatus)
   #attrition rates: Divorced = 6.28%; married = 14.5%; single = 26.02%
-
 marital.attrition.rate = data.frame(MaritalStatus = c("Divorced", "Married", "Single"), 
                                     AttritionRate = c(6.28,14.15,26.02))
 
@@ -103,23 +116,115 @@ marital.attrition.rate %>%
   ggtitle("Attrition Rates of each Marital Status") +
   theme_minimal() +
   xlab("Marital Status") +
-  ylab("Attrition Rate")
+  ylab("Attrition Rate (percentage)")
 ```
 
 
 
+Final KNN model with 81.99% accuracy rating, 82.87% Sensitivity, and 60% specificity rating
+
+```{r}
+
+#KNN
+set.seed(11)
+splitPerc = .7
+trainIndices = sample(1:dim(CaseStudy2data)[1], round(splitPerc*dim(CaseStudy2data)[1]))
+train = CaseStudy2data[trainIndices,]
+test = CaseStudy2data[-trainIndices,]
+
+#best K-value:
+accs = data.frame(accuracy = numeric(30), k = numeric(30))
+for(i in 1:30)
+{
+  classifications = knn(train[,c(2,5,20,32,33)],test[,c(2,5,20,32,33)],train$Attrition,prob=TRUE, k=i)
+  table(test$Attrition,classifications)
+  CM = confusionMatrix(table(test$Attrition,classifications))
+  accs$accuracy[i] = CM$overall[1]
+  accs$k[i] = i
+}
+plot(accs$k,accs$accuracy, type = "l", xlab = "K") #15 best value for k but lowers specificity to 50%
+
+classifications = knn(train = train[,c(2,5,20,32,33)],test = test[,c(2,5,20,32,33)],cl = train$Attrition, prob = TRUE, k =7)
+confusionMatrix(table(test$Attrition,classifications))
+
+```
+
+
+Final Naive Bayes model adding factor variables. Accuracy = 80.46%, Sensitivity = 97.17%, Specificity = 8.16%
+
+```{r}
+#Naive Bayes
+model = naiveBayes(Attrition ~ Age + Department + Gender + HourlyRate + JobLevel + JobSatisfaction + MaritalStatus, data = train)
+CM = confusionMatrix(table(predict(model,test),test$Attrition))
+
+```
+
+
+#Predicting using a data set without attrition
+
+```{r}
+classifications = knn(train = train[,c(2,5,20,32,33)],test = CaseStudy2dataNoAttrition[,c(2,4,19,31,32)], cl = train$Attrition, prob = TRUE, k= 7)
+
+KNNpredictions = as.data.frame(classifications)
+KNNpredictions$ID <- CaseStudy2dataNoAttrition %>% select(ID)
+write.csv(KNNpredictions, "../casestudy02/CaseStudy2KNNpredictions.csv", quote = FALSE)
+
+```
+
+
+#Creating regression model to be used to test the no salary data set
+
+```{r}
+#Variables that have highest R-sq value in relation to Monthly Income :
+fit1 = lm(MonthlyIncome~JobLevel, data = CaseStudy2data)
+summary(fit1) #r-sq = .9055
+fit2 = lm(MonthlyIncome~StockOptionLevel, data = CaseStudy2data)
+summary(fit2) #not good
+fit3 = lm(MonthlyIncome~DistanceFromHome, data = CaseStudy2data)
+summary(fit3) #not good
+fit4 = lm(MonthlyIncome~JobRole, data = CaseStudy2data)
+summary(fit4) #r-sq = .8087
+fit5 = lm(MonthlyIncome~TotalWorkingYears, data = CaseStudy2data)
+summary(fit5) #r-sq = .6056
+fit6 = lm(MonthlyIncome~Education, data = CaseStudy2data)
+summary(fit6) #not good
+fit7 = lm(MonthlyIncome~BusinessTravel, data = CaseStudy2data)
+summary(fit7) #not good
+fit8 = lm(MonthlyIncome~YearsAtCompany, data = CaseStudy2data)
+summary(fit8) #r-sq = .24
+fit9 = lm(MonthlyIncome~YearsInCurrentRole, data = CaseStudy2data)
+summary(fit9) #r-sq = .13
+fit10 = lm(MonthlyIncome~YearsSinceLastPromotion, data = CaseStudy2data)
+summary(fit10) #not good
+
+#combined model
+modelfit = lm(MonthlyIncome~JobLevel + JobRole+ TotalWorkingYears + YearsAtCompany + YearsInCurrentRole, data = CaseStudy2data)
+summary(modelfit) #r-sq = .9472
+confint(fit10)
+rmse <- sqrt(mean(residuals(modelfit)^2)) #1055.69 < 3000
+
+#Salary Predictions using modelfit
+
+Salaries = predict(modelfit, newdata = CaseStudy2dataNoSalaries)
+SalaryPredictions = as.data.frame(Salaries)
+SalaryPredictions$ID <- CaseStudy2dataNoSalaries %>% select(ID)
+write.csv(SalaryPredictions, "../casestudy02/CaseStudy2Salarypredictions.csv", quote = FALSE)
+
+
+
+```
 
 ##possible additions:
 ```{r pressure, echo=FALSE, include=FALSE}
 #meh
-CaseStudy2data %>%
+Attrition.cleaned %>%
   ggplot(aes(x=YearsAtCompany, y=YearsWithCurrManager,color=Attrition)) + 
   geom_point() +
   geom_smooth(method=lm) +
   theme_minimal()
 
 #number of companies worked at 
-numcompaniesworked.info = as.data.frame(CaseStudy2data %>% 
+numcompaniesworked.info = as.data.frame(Attrition.cleaned %>% 
                                           group_by(NumCompaniesWorked, Attrition) %>% 
                                           count(NumCompaniesWorked))
 companies.worked.attrition.rate = data.frame(NumCompaniesWorked =  c("0","0","1","1","2","2","3","3","4","4","5","5","6","6","7","7","8","8","9","9"), 
@@ -132,7 +237,6 @@ companies.worked.attrition.rate %>%
   geom_text(aes(label = AttritionRate, y = AttritionRate -10), vjust = -7, position = position_dodge(width = .9), size = 2.3)
 
 #count of people who worked at multiple companies
-CaseStudy2data %>% ggplot(aes(x = NumCompaniesWorked, fill = Attrition)) + geom_bar(position = "dodge")
+Attrition.cleaned %>% ggplot(aes(x = NumCompaniesWorked, fill = Attrition)) + geom_bar(position = "dodge")
 
 ```
-
