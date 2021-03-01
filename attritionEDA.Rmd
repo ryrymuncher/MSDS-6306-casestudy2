@@ -31,7 +31,8 @@ CaseStudy2dataNoSalaries = read.csv("../casestudy02/CaseStudy2dataNoSalary.csv",
 
 #DDS Analytics specializes in talent management solutions for Fortune 100 companies, with predicting turnover
 #as the first application of data science for talent management. In this Case study, we have been given a dataset 
-# to identify factors leading to attrition. Then, a model will be created to predict attrition.
+# to identify factors leading to attrition. Then, a model will be created to predict attrition. Afterwards, we 
+# will analyze factors correlated with employee salary, and build a model to predict employee salaries.
 
 ##Data cleanup
 
@@ -56,6 +57,8 @@ Attrition.cleaned %>%
               Relationship_Satisfaction=mean(RelationshipSatisfaction),
               Performance_Rating = mean(PerformanceRating),
               average_ratings = ((Job_Satisfaction + Relationship_Satisfaction + Performance_Rating)/3))
+#Overtime playing a big role in attrition
+CaseStudy2data %>% group_by(OverTime,Attrition) %>% count()
 
 
 ```
@@ -88,16 +91,18 @@ CaseStudy2data %>%
 
 ```
 
-##Factor 2: Age
+##Factor 2: Years at Company
 ```{r}
-Attrition.cleaned%>% group_by(Attrition) %>% summarise(mean(Age))
+Attrition.cleaned%>% group_by(Attrition) %>% summarise(mean(YearsAtCompany))
 
 #boxplot showing the attrition explained by age
-CaseStudy2data %>% ggplot(aes(x=Attrition, y=Age)) + 
+CaseStudy2data %>% ggplot(aes(x=Attrition, y=YearsAtCompany)) + 
   geom_boxplot() +
   scale_fill_grey() +
-  ggtitle("Boxplot Showing Attrition Explained By Age") +
-  theme_economist()
+  ggtitle("Attrition Explained By Years at Company") +
+  theme_economist() +
+  ylab("Years at the Company")
+
 
 ```
 
@@ -117,11 +122,28 @@ marital.attrition.rate %>%
   theme_minimal() +
   xlab("Marital Status") +
   ylab("Attrition Rate (percentage)")
+
+#A look at marital status among employees
+CaseStudy2data %>% 
+  ggplot(aes(x= MaritalStatus, fill=Attrition)) +
+  geom_bar(position = "dodge") +
+  geom_text(aes(label = ..count..),stat="count", vjust = -.5, position = position_dodge(.9)) +
+  ggtitle("Number of Employees Who Are Divorced, Married, or Single") +
+  xlab("Marital Status") +
+  ylab("Count") +
+  theme_minimal()
+
+#density plot for monthly income based on marital status
+CaseStudy2data %>% 
+  ggplot(aes(x=MonthlyIncome)) + 
+  geom_density(aes(fill=MaritalStatus), alpha=.6) + 
+  ggtitle("Density Plot of Monthly Income by Marital Status") +
+  xlab("Monthly Income")
 ```
 
 
 
-Final KNN model with 81.99% accuracy rating, 82.87% Sensitivity, and 60% specificity rating
+#Final KNN model with 81.99% accuracy rating, 82.87% Sensitivity, and 60% specificity rating
 
 ```{r}
 
@@ -144,13 +166,14 @@ for(i in 1:30)
 }
 plot(accs$k,accs$accuracy, type = "l", xlab = "K") #15 best value for k but lowers specificity to 50%
 
+#build model and look at confusion matrix statistics
 classifications = knn(train = train[,c(2,5,20,32,33)],test = test[,c(2,5,20,32,33)],cl = train$Attrition, prob = TRUE, k =7)
 confusionMatrix(table(test$Attrition,classifications))
 
 ```
 
 
-Final Naive Bayes model adding factor variables. Accuracy = 80.46%, Sensitivity = 97.17%, Specificity = 8.16%
+#Final Naive Bayes model adding factor variables. Accuracy = 80.46%, Sensitivity = 97.17%, Specificity = 8.16%
 
 ```{r}
 #Naive Bayes
@@ -214,29 +237,5 @@ write.csv(SalaryPredictions, "../casestudy02/CaseStudy2Salarypredictions.csv", q
 
 ```
 
-##possible additions:
-```{r pressure, echo=FALSE, include=FALSE}
-#meh
-Attrition.cleaned %>%
-  ggplot(aes(x=YearsAtCompany, y=YearsWithCurrManager,color=Attrition)) + 
-  geom_point() +
-  geom_smooth(method=lm) +
-  theme_minimal()
 
-#number of companies worked at 
-numcompaniesworked.info = as.data.frame(Attrition.cleaned %>% 
-                                          group_by(NumCompaniesWorked, Attrition) %>% 
-                                          count(NumCompaniesWorked))
-companies.worked.attrition.rate = data.frame(NumCompaniesWorked =  c("0","0","1","1","2","2","3","3","4","4","5","5","6","6","7","7","8","8","9","9"), 
-                                       AttritionRate = c(90.1,9.9,81.25,18.75,87.84,12.16,90,10,91.8,8.2,74.4,25.6,77,23,76.1,23.9,82.14,17.86,75.76,24.24),
-                                       Attrition = c("No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes","No","Yes"))
-
-companies.worked.attrition.rate %>% 
-  ggplot(aes(x=NumCompaniesWorked, y= AttritionRate, fill = Attrition)) +
-  geom_bar(position = "dodge", stat = "identity") +
-  geom_text(aes(label = AttritionRate, y = AttritionRate -10), vjust = -7, position = position_dodge(width = .9), size = 2.3)
-
-#count of people who worked at multiple companies
-Attrition.cleaned %>% ggplot(aes(x = NumCompaniesWorked, fill = Attrition)) + geom_bar(position = "dodge")
-
-```
+# youtube link : https://www.youtube.com/watch?v=wvL-XCkBzgo
