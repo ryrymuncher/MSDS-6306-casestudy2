@@ -59,7 +59,7 @@ Attrition.cleaned %>%
               average_ratings = ((Job_Satisfaction + Relationship_Satisfaction + Performance_Rating)/3))
 #Overtime playing a big role in attrition
 CaseStudy2data %>% group_by(OverTime,Attrition) %>% count()
-
+ 
  
 ```
 #3 Factors Contributing to Turnover:
