@@ -60,7 +60,7 @@ Attrition.cleaned %>%
 #Overtime playing a big role in attrition
 CaseStudy2data %>% group_by(OverTime,Attrition) %>% count()
 
-
+ 
 ```
 #3 Factors Contributing to Turnover:
 
